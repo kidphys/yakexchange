@@ -7,11 +7,12 @@ import cProfile
 def one_sweep():
     m = ContinuousMatch()
     base_price = 10000
-    for i in xrange(1000):
+    order_count = 5
+    for i in xrange(order_count):
         price = base_price + i
         m.push(Order(side=Side.Buy, price=price, volume=1000))
     # sweep them all
-    m.push(Order(side=Side.Sell, price=base_price, volume=1000 * 20000))
+    m.push(Order(side=Side.Sell, price=base_price, volume=1000 * order_count))
 
 def random_sweep():
     m = ContinuousMatch()
@@ -22,5 +23,5 @@ def random_sweep():
             m.push(Order(side=Side.Sell, price=p, volume=1000))
 
 if __name__ == '__main__':
-    cProfile.run('random_sweep()', sort='tottime')
-    # cProfile.run('one_sweep()', sort='tottime')
+    # cProfile.run('random_sweep()', sort='tottime')
+    cProfile.run('one_sweep()', sort='tottime')

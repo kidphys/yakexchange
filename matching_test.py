@@ -128,8 +128,8 @@ def test_match_correct_order_id(matcher):
 
 
 def test_large_quantity_match(matcher):
-    matcher.push(Order(price=16.0, volume=2000, side=Side.Sell))
     for _ in range(999):
         matcher.push(Order(price=16.0, volume=2, side=Side.Buy))
+    matcher.push(Order(price=16.0, volume=2000, side=Side.Sell))
     assert matcher.order_count(Side.Buy) == 0
     assert matcher.order_count(Side.Sell) == 1

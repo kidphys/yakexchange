@@ -116,13 +116,6 @@ class ContinuousMatch():
     def order_count(self, side):
         return self._orders[side].size()
 
-    # to be deleted
-    def _clean_up(self, top_buy, top_sell):
-        if top_buy.volume is 0:
-            self._orders[Side.Buy].dequeue()
-        if top_sell.volume is 0:
-            self._orders[Side.Sell].dequeue()
-
     def _gen_report(self, top_buy, top_sell, order):
         m = MatchReport()
         m.price = order.price
@@ -136,32 +129,7 @@ class ContinuousMatch():
         return top_buy, top_sell
 
     def push(self, order):
-        # self._orders[order.side].push(order)
         ans = []
-
-        # if order.side is Side.Buy:
-        #     top_buy = order
-        #     top_sell = self._orders[Side.Sell].peek()
-        #     while self.match(top_buy, top_sell):
-        #         ans.append(self._gen_report(top_buy, top_sell, order))
-        #         if top_sell.volume is 0:
-        #             self._orders[Side.Sell].dequeue()
-        #         if order.volume is 0:
-        #             break
-        #         top_sell = self._orders[Side.Sell].peek()
-        # elif order.side is Side.Sell:
-        #     top_sell = order
-        #     top_buy = self._orders[Side.Buy].peek()
-        #     while self.match(top_buy, top_sell):
-        #         ans.append(self._gen_report(top_buy, top_sell, order))
-        #         if top_buy.volume is 0:
-        #             self._orders[Side.Buy].dequeue()
-        #         if order.volume is 0:
-        #             break
-        #         top_buy = self._orders[Side.Buy].peek()
-
-        # if order.volume > 0:
-        #     self._orders[order.side].push(order)
 
         def _match_buy(top_buy, top_sell):
             return self.match(top_buy, top_sell)
@@ -182,6 +150,7 @@ class ContinuousMatch():
 
         target_order = targets.peek()
         while match(order, target_order):
+            print('matching remaining volume: {0}'.format(order.volume))
             ans.append(gen_report(order, target_order, order))
 
             # cleanup
@@ -191,8 +160,10 @@ class ContinuousMatch():
             # avoid empty check when matching is finished
             if order.volume is 0:
                 break
+
+            print('peeking..')
             target_order = targets.peek()
-            # top_buy, top_sell = self._to_match_order(order)
+
         if order.volume > 0:
             self._orders[order.side].push(order)
         return ans

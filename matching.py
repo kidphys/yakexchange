@@ -139,24 +139,22 @@ class ContinuousMatch():
             return self._gen_report(top_buy, top_sell, order)
 
         targets = self._orders[Side.opposite_of(order.side)]
+        if targets.size() == 0:
+            self._orders[order.side].push(order)
+            return ans
 
         match = _match_buy if order.side is Side.Buy else _match_sell
         gen_report = _gen_buy_report if order.side is Side.Buy else _gen_sell_report
 
         target_order = targets.peek()
         while match(order, target_order):
-            print('matching remaining volume: {0}'.format(order.volume))
             ans.append(gen_report(order, target_order, order))
-
             # cleanup
             if target_order.volume is 0:
                 targets.dequeue()
-
             # avoid empty check when matching is finished
             if order.volume is 0:
                 break
-
-            print('peeking..')
             target_order = targets.peek()
 
         if order.volume > 0:

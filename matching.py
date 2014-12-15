@@ -123,11 +123,6 @@ class ContinuousMatch():
         m.buy_id = top_buy.id
         return m
 
-    def _to_match_order(self, order):
-        top_buy = self._orders[Side.Buy].peek() if order.side is Side.Sell else order
-        top_sell = self._orders[Side.Sell].peek() if order.side is Side.Buy else order
-        return top_buy, top_sell
-
     def push(self, order):
         ans = []
 

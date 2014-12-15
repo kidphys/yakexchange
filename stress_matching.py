@@ -7,7 +7,7 @@ import cProfile
 def one_sweep():
     m = ContinuousMatch()
     base_price = 10000
-    for i in range(20000):
+    for i in xrange(1000):
         price = base_price + i
         m.push(Order(side=Side.Buy, price=price, volume=1000))
     # sweep them all
@@ -23,3 +23,4 @@ def random_sweep():
 
 if __name__ == '__main__':
     cProfile.run('random_sweep()', sort='tottime')
+    # cProfile.run('one_sweep()', sort='tottime')

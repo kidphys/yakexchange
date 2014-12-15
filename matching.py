@@ -38,6 +38,14 @@ class SortedOrders():
         self.side = side
         self._orders = []
         self._prices = []  # keeping track of prices to sort
+        if side is Side.Buy:
+            self._top_index = -1
+            self._bisect = bisect_left
+        elif side is Side.Sell:
+            self._top_index = 0
+            self._bisect = bisect_right
+        else:
+            raise AttributeError("Unsupported side " + self.side)
 
     def peek(self):
         """
@@ -45,18 +53,10 @@ class SortedOrders():
         """
         if len(self._orders) == 0:
             return None
-        if self.side is Side.Buy:
-            return self._orders[-1]
-        elif self.side is Side.Sell:
-            return self._orders[0]
-        else:
-            raise AttributeError("Unsupported side " + self.side)
+        return self._orders[self._top_index]
 
     def insert_position(self, order):
-        if self.side is Side.Buy:
-            return bisect_left(self._prices, order.price)
-        elif self.side is Side.Sell:
-            return bisect_right(self._prices, order.price)
+        return self._bisect(self._prices, order.price)
 
     def push(self, order):
         if order.price is None:
@@ -106,10 +106,7 @@ class ContinuousMatch():
             return False
         return True
 
-    def match(self):
-        top_buy = self._orders[Side.Buy].peek()
-        top_sell = self._orders[Side.Sell].peek()
-
+    def match(self, top_buy, top_sell):
         if self._is_match(top_buy, top_sell):
             self._do_match(top_buy, top_sell)
             return True
@@ -119,24 +116,83 @@ class ContinuousMatch():
     def order_count(self, side):
         return self._orders[side].size()
 
-    def _clean_up(self):
-        if self._orders[Side.Buy].peek().volume is 0:
+    # to be deleted
+    def _clean_up(self, top_buy, top_sell):
+        if top_buy.volume is 0:
             self._orders[Side.Buy].dequeue()
-        if self._orders[Side.Sell].peek().volume is 0:
+        if top_sell.volume is 0:
             self._orders[Side.Sell].dequeue()
 
+    def _gen_report(self, top_buy, top_sell, order):
+        m = MatchReport()
+        m.price = order.price
+        m.sell_id = top_sell.id
+        m.buy_id = top_buy.id
+        return m
+
+    def _to_match_order(self, order):
+        top_buy = self._orders[Side.Buy].peek() if order.side is Side.Sell else order
+        top_sell = self._orders[Side.Sell].peek() if order.side is Side.Buy else order
+        return top_buy, top_sell
+
     def push(self, order):
-        self._orders[order.side].push(order)
+        # self._orders[order.side].push(order)
         ans = []
 
-        def gen_report():
-            m = MatchReport()
-            m.price = order.price
-            m.sell_id = self.sell_orders().peek().id
-            m.buy_id = self.buy_orders().peek().id
-            return m
+        # if order.side is Side.Buy:
+        #     top_buy = order
+        #     top_sell = self._orders[Side.Sell].peek()
+        #     while self.match(top_buy, top_sell):
+        #         ans.append(self._gen_report(top_buy, top_sell, order))
+        #         if top_sell.volume is 0:
+        #             self._orders[Side.Sell].dequeue()
+        #         if order.volume is 0:
+        #             break
+        #         top_sell = self._orders[Side.Sell].peek()
+        # elif order.side is Side.Sell:
+        #     top_sell = order
+        #     top_buy = self._orders[Side.Buy].peek()
+        #     while self.match(top_buy, top_sell):
+        #         ans.append(self._gen_report(top_buy, top_sell, order))
+        #         if top_buy.volume is 0:
+        #             self._orders[Side.Buy].dequeue()
+        #         if order.volume is 0:
+        #             break
+        #         top_buy = self._orders[Side.Buy].peek()
 
-        while self.match():
-            ans.append(gen_report())
-            self._clean_up()
+        # if order.volume > 0:
+        #     self._orders[order.side].push(order)
+
+        def _match_buy(top_buy, top_sell):
+            return self.match(top_buy, top_sell)
+
+        def _match_sell(top_sell, top_buy):
+            return self.match(top_buy, top_sell)
+
+        def _gen_buy_report(top_buy, top_sell, order):
+            return self._gen_report(top_buy, top_sell, order)
+
+        def _gen_sell_report(top_sell, top_buy, order):
+            return self._gen_report(top_buy, top_sell, order)
+
+        targets = self._orders[Side.opposite_of(order.side)]
+
+        match = _match_buy if order.side is Side.Buy else _match_sell
+        gen_report = _gen_buy_report if order.side is Side.Buy else _gen_sell_report
+
+        target_order = targets.peek()
+        while match(order, target_order):
+            ans.append(gen_report(order, target_order, order))
+
+            # cleanup
+            if target_order.volume is 0:
+                targets.dequeue()
+
+            # avoid empty check when matching is finished
+            if order.volume is 0:
+                break
+            target_order = targets.peek()
+            # top_buy, top_sell = self._to_match_order(order)
+        if order.volume > 0:
+            self._orders[order.side].push(order)
         return ans

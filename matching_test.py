@@ -1,3 +1,4 @@
+import pytest
 from matching import SortedOrders
 from matching import Order
 from matching import Side
@@ -72,52 +73,63 @@ def test_late_sell_lower_priority():
     assert o1 == s.peek()
 
 
-def test_match_none_when_have_only_one_order():
-    matcher = ContinuousMatch()
+@pytest.fixture
+def matcher():
+    return ContinuousMatch()
+
+
+def test_match_none_when_have_only_one_order(matcher):
     reports = matcher.push(Order(price=16.0, volume=1000, side=Side.Buy))
     assert len(reports) == 0
 
 
-def test_match_one_buy_one_sell():
-    matcher = ContinuousMatch()
+def test_match_one_buy_one_sell(matcher):
     matcher.push(Order(price=16.0, volume=1000, side=Side.Buy))
     reports = matcher.push(Order(price=16.0, volume=1000, side=Side.Sell))
     assert len(reports) == 1
 
 
-def test_after_full_match_order_is_removed():
-    matcher = ContinuousMatch()
+def test_after_full_match_order_is_removed(matcher):
     matcher.push(Order(price=16.0, volume=500, side=Side.Buy))
     matcher.push(Order(price=16.0, volume=1000, side=Side.Sell))
     assert 0 == matcher.order_count(Side.Buy)
 
 
-def test_partial_match_leave_order_in_list():
-    matcher = ContinuousMatch()
+def test_partial_match_leave_order_in_list(matcher):
     matcher.push(Order(price=16.0, volume=500, side=Side.Buy))
     matcher.push(Order(price=16.0, volume=1000, side=Side.Sell))
     assert 1 == matcher.order_count(Side.Sell)
 
 
-def test_match_one_buy_two_sell():
-    matcher = ContinuousMatch()
+def test_match_one_buy_two_sell(matcher):
     matcher.push(Order(price=16.0, volume=200, side=Side.Sell))
     matcher.push(Order(price=16.0, volume=200, side=Side.Sell))
     reports = matcher.push(Order(price=16.0, volume=1000, side=Side.Buy))
     assert len(reports) == 2
 
 
-def test_match_with_better_priee():
-    matcher = ContinuousMatch()
+def test_match_with_better_price(matcher):
     matcher.push(Order(price=16.0, volume=200, side=Side.Sell))
     reports = matcher.push(Order(price=17.0, volume=1000, side=Side.Buy))
     assert len(reports) == 1
 
 
-def test_earlier_order_matched_in_better_price():
-    matcher = ContinuousMatch()
+def test_earlier_order_matched_in_better_price(matcher):
     matcher.push(Order(price=16.0, volume=200, side=Side.Sell))
     reports = matcher.push(Order(price=17.0, volume=1000, side=Side.Buy))
     assert reports[0].price == 17.0
 
-# def test_higher_buy_match_in_lower_price():
+
+def test_match_correct_order_id(matcher):
+    matcher.push(Order(id=1, price=16.0, volume=200, side=Side.Sell))
+    reports = matcher.push(Order(id=2, price=17.0, volume=1000, side=Side.Buy))
+    assert reports[0].sell_id == 1
+    assert reports[0].buy_id == 2
+
+
+def test_large_quantity_match(matcher):
+    matcher.push(Order(price=16.0, volume=2000, side=Side.Sell))
+    for _ in range(999):
+        matcher.push(Order(price=16.0, volume=2, side=Side.Buy))
+    assert matcher.order_count(Side.Buy) == 0
+    assert matcher.order_count(Side.Sell) == 1

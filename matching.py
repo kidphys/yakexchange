@@ -79,6 +79,78 @@ class SortedOrders():
         return len(self._orders)
 
 
+class StaticContinuousMatch():
+    """
+    Build for large memory but faster matching algo
+    """
+
+    def __init__(self, floor_price=1000, ceil_price=5000, price_step=100):
+        """
+        Init function, floor & ceil prices are chosen
+        such as internal array is about 40 in size
+        """
+        step_count = (ceil_price - floor_price) / price_step + 1
+        self._floor_price = floor_price
+        self._price_step = price_step
+        self._orders = {}
+        self._orders = [[] for _ in range(step_count)]
+        self._buy_index = -1
+
+    def _price_to_index(self, price):
+        return (price - self._floor_price) / self._price_step
+
+    def _index_to_price(self, index):
+        return self._floor_price + self._price_step * index
+
+    def _is_match(self, buy_order, sell_order):
+        if buy_order is None:
+            return False
+        if sell_order is None:
+            return False
+        if buy_order.price < sell_order.price:
+            return False
+        return True
+
+    def push(self, order):
+
+        def _match_buy(top_buy, top_sell):
+            return self.match(top_buy, top_sell)
+
+        def _match_sell(top_sell, top_buy):
+            return self.match(top_buy, top_sell)
+
+        def _gen_buy_report(top_buy, top_sell, order):
+            return self._gen_report(top_buy, top_sell, order)
+
+        def _gen_sell_report(top_sell, top_buy, order):
+            return self._gen_report(top_buy, top_sell, order)
+
+        match = _match_buy if order.side is Side.Buy else _match_sell
+        gen_report = _gen_buy_report \
+            if order.side is Side.Buy \
+            else _gen_sell_report
+
+        index = self._price_to_index(order.price)
+
+        if order.side is Side.Buy:
+            if index <= self._buy_index:
+                self._orders[index].append(order)
+            else:
+                while len(self._orders[index]) > 0:
+                    if match(order, self._order[index][0]):
+                        if order.volume == 0:
+                            break
+                        else:
+                            del self._orders[index][0]
+                    index += 1
+
+        if len(self._orders[index]) > 0:
+            while match(order, self._orders[0]):
+                pass
+        else:
+            self._orders[order.side][index].append(order)
+
+
 class ContinuousMatch():
 
     def __init__(self):
@@ -144,7 +216,9 @@ class ContinuousMatch():
             return ans
 
         match = _match_buy if order.side is Side.Buy else _match_sell
-        gen_report = _gen_buy_report if order.side is Side.Buy else _gen_sell_report
+        gen_report = _gen_buy_report \
+            if order.side is Side.Buy \
+            else _gen_sell_report
 
         target_order = targets.peek()
         while match(order, target_order):

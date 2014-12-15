@@ -22,6 +22,18 @@ def random_sweep():
         for p in range(16000, 17000, 100):
             m.push(Order(side=Side.Sell, price=p, volume=1000))
 
+
+m = ContinuousMatch()
+for i in range(1):
+    for p in range(16000, 17000, 500):
+        m.push(Order(side=Side.Sell, price=p, volume=1000))
+
+def matching_with_pending_order():
+    for i in range(20000):
+        m.push(Order(side=Side.Buy, price=16000, volume=1000))
+        # m.push(Order(side=Side.Sell, price=16000, volume=1000))
+
 if __name__ == '__main__':
     cProfile.run('random_sweep()', sort='tottime')
     # cProfile.run('one_sweep()', sort='tottime')
+    # cProfile.run('matching_with_pending_order()')

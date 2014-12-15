@@ -96,6 +96,7 @@ class StaticContinuousMatch():
         self._orders = {}
         self._orders = [[] for _ in range(step_count)]
         self._buy_index = -1
+        self._order_count = {Side.Buy: 0, Side.Sell: 0}
 
     def _price_to_index(self, price):
         return int((price - self._floor_price) / self._price_step)
@@ -132,12 +133,7 @@ class StaticContinuousMatch():
         return m
 
     def order_count(self, side):
-        count = 0
-        for order_list in self._orders:
-            for o in order_list:
-                if o.side == side:
-                    count += 1
-        return count
+        return self._order_count[side]
 
     def push(self, order):
         if order.price > self._ceil_price or order.price < self._floor_price:
@@ -165,6 +161,7 @@ class StaticContinuousMatch():
         if self.order_count(Side.Buy) == 0 and self.order_count(Side.Sell) == 0:
             self._buy_index = index if order.side == Side.Buy else index - 1
             self._orders[index].append(order)
+            self._order_count[order.side] += 1
             return []
 
         def match_list(order, targets):
@@ -173,6 +170,7 @@ class StaticContinuousMatch():
                 match(order, targets[0])
                 ans.append(gen_report(order, targets[0], order))
                 if targets[0].volume == 0:
+                    self._order_count[targets[0].side] -= 1
                     del targets[0]
                 if order.volume == 0:
                     return ans
@@ -181,6 +179,7 @@ class StaticContinuousMatch():
         if order.side is Side.Buy:
             if index <= self._buy_index:
                 self._orders[index].append(order)
+                self._order_count[order.side] += 1
                 return []
             else:
                 ans = []
@@ -192,11 +191,13 @@ class StaticContinuousMatch():
                         return ans
                 if order.volume > 0:
                     self._orders[index].append(order)
+                    self._order_count[order.side] += 1
                 return ans
 
         if order.side is Side.Sell:
             if index > self._buy_index:
                 self._orders[index].append(order)
+                self._order_count[order.side] += 1
                 return []
             else:
                 ans = []
@@ -207,6 +208,7 @@ class StaticContinuousMatch():
                         return ans
                 if order.volume > 0:
                     self._orders[index].append(order)
+                    self._order_count[order.side] += 1
                 return ans
 
 

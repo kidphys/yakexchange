@@ -3,6 +3,7 @@ from matching import SortedOrders
 from matching import Order
 from matching import Side
 from matching import ContinuousMatch
+from matching import StaticContinuousMatch
 
 
 def test_opposite_side():
@@ -73,9 +74,12 @@ def test_late_sell_lower_priority():
     assert o1 == s.peek()
 
 
-@pytest.fixture
-def matcher():
-    return ContinuousMatch()
+@pytest.fixture(params=['ContinuousMatch', 'StaticContinuousMatch'])
+def matcher(request):
+    if request.param == 'ContinuousMatch':
+        return ContinuousMatch()
+    else:
+        return StaticContinuousMatch()
 
 
 def test_match_none_when_have_only_one_order(matcher):
@@ -90,9 +94,18 @@ def test_match_one_buy_one_sell(matcher):
 
 
 def test_after_full_match_order_is_removed(matcher):
-    matcher.push(Order(price=16.0, volume=500, side=Side.Buy))
+    matcher.push(Order(price=16.0, volume=1000, side=Side.Buy))
     matcher.push(Order(price=16.0, volume=1000, side=Side.Sell))
     assert 0 == matcher.order_count(Side.Buy)
+    assert 0 == matcher.order_count(Side.Sell)
+
+
+def test_match_again_after_empty(matcher):
+    matcher.push(Order(price=16.0, volume=1000, side=Side.Buy))
+    matcher.push(Order(price=16.0, volume=1000, side=Side.Sell))
+    matcher.push(Order(price=17.0, volume=500, side=Side.Buy))
+    reports = matcher.push(Order(price=17.0, volume=500, side=Side.Sell))
+    assert len(reports) == 1
 
 
 def test_partial_match_leave_order_in_list(matcher):

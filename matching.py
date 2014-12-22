@@ -132,13 +132,18 @@ class StaticContinuousMatch():
         m.buy_id = top_buy.id
         return m
 
+    def _price_within_range(self, order):
+        return order.price <= self._ceil_price \
+            and order.price >= self._floor_price
+
+    def is_empty(self):
+        return self.order_count(Side.Buy) == 0 and \
+            self.order_count(Side.Sell) == 0
+
     def order_count(self, side):
         return self._order_count[side]
 
     def push(self, order):
-        if order.price > self._ceil_price or order.price < self._floor_price:
-            raise AttributeError('Price {0} must be within range of {1}-{2}'.format(order.price, self._floor_price, self._ceil_price))
-
         def _match_buy(top_buy, top_sell):
             return self.match(top_buy, top_sell)
 
@@ -150,19 +155,6 @@ class StaticContinuousMatch():
 
         def _gen_sell_report(top_sell, top_buy, order):
             return self._gen_report(top_buy, top_sell, order)
-
-        match = _match_buy if order.side is Side.Buy else _match_sell
-        gen_report = _gen_buy_report \
-            if order.side is Side.Buy \
-            else _gen_sell_report
-
-        index = self._price_to_index(order.price)
-
-        if self.order_count(Side.Buy) == 0 and self.order_count(Side.Sell) == 0:
-            self._buy_index = index if order.side == Side.Buy else index - 1
-            self._orders[index].append(order)
-            self._order_count[order.side] += 1
-            return []
 
         def match_list(order, targets):
             ans = []
@@ -176,40 +168,65 @@ class StaticContinuousMatch():
                     return ans
             return ans
 
+        def has_no_match(order):
+            # having no opposite order to match
+            if self._order_count[Side.opposite_of(order.side)] == 0:
+                return True
+
+            # having some opposite order to match
+            # but my price was way too high/low
+            index = self._price_to_index(order.price)
+            if order.side is Side.Buy and index <= self._buy_index:
+                return True
+            if order.side is Side.Sell and index > self._buy_index:
+                return True
+            return False
+
+        if not self._price_within_range(order):
+            templ = 'Price {0} must be within range of {1}-{2}'
+            msg = templ.format(order.price,
+                               self._floor_price, self._ceil_price)
+            raise AttributeError(msg)
+
+        # Setting function to call depends on side
+        match = _match_buy if order.side is Side.Buy else _match_sell
+        gen_report = _gen_buy_report \
+            if order.side is Side.Buy \
+            else _gen_sell_report
+
+        index = self._price_to_index(order.price)
+
+        if self.is_empty():
+            self._buy_index = index if order.side == Side.Buy else index - 1
+            self._orders[index].append(order)
+            self._order_count[order.side] += 1
+            return []
+
+        if has_no_match(order):
+            self._orders[index].append(order)
+            self._order_count[order.side] += 1
+            if order.side is Side.Sell and index <= self._buy_index:
+                self._buy_index = index - 1
+            if order.side is Side.Buy and index > self._buy_index:
+                self._buy_index = index
+            return []
+
+        ans = []
         if order.side is Side.Buy:
-            if index <= self._buy_index:
-                self._orders[index].append(order)
-                self._order_count[order.side] += 1
-                return []
-            else:
-                ans = []
-                for i in range(self._buy_index + 1, index + 1):
-                    curr_ans = match_list(order, self._orders[i])
-                    ans += curr_ans
-                    if order.volume == 0:
-                        self._buy_index = i
-                        return ans
-                if order.volume > 0:
-                    self._orders[index].append(order)
-                    self._order_count[order.side] += 1
+            start, end = self._buy_index + 1, index + 1
+        else:
+            start, end = index, self._buy_index + 1
+        print(self._index_to_price(start), self._index_to_price(end))
+        for i in range(start, end):
+            ans += match_list(order, self._orders[i])
+            if order.volume == 0:
+                self._buy_index = i if order.side is Side.Buy else i - 1
                 return ans
 
-        if order.side is Side.Sell:
-            if index > self._buy_index:
-                self._orders[index].append(order)
-                self._order_count[order.side] += 1
-                return []
-            else:
-                ans = []
-                for i in range(index, self._buy_index + 1):
-                    ans += match_list(order, self._orders[i])
-                    if order.volume == 0:
-                        self._buy_index = i - 1
-                        return ans
-                if order.volume > 0:
-                    self._orders[index].append(order)
-                    self._order_count[order.side] += 1
-                return ans
+        if order.volume > 0:
+            self._orders[index].append(order)
+            self._order_count[order.side] += 1
+        return ans
 
 
 class ContinuousMatch():

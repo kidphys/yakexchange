@@ -139,6 +139,11 @@ def test_match_correct_order_id(matcher):
     assert reports[0].sell_id == 1
     assert reports[0].buy_id == 2
 
+def test_match_across_multiple_price(matcher):
+    matcher.push(Order(id=1, price=16.0, volume=200, side=Side.Sell))
+    matcher.push(Order(id=2, price=15.0, volume=200, side=Side.Sell))
+    reports = matcher.push(Order(id=3, price=17.0, volume=1000, side=Side.Buy))
+    assert len(reports) == 2
 
 def test_large_quantity_match(matcher):
     for _ in range(999):

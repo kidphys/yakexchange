@@ -35,8 +35,21 @@ def matching_with_pending_order():
     for i in range(20000):
         m.push(Order(side=Side.Buy, price=16000, volume=1000))
         # m.push(Order(side=Side.Sell, price=16000, volume=1000))
+        #
+
+import multiprocessing as mp
+def multi_process_random_sweep():
+    processes = [mp.Process(target=random_sweep) for x in range(4)]
+    for p in processes:
+        p.start()
+    for p in processes:
+        p.join()
+
 
 if __name__ == '__main__':
-    cProfile.run('random_sweep()', sort='tottime')
+    import timeit
+    timeit.timeit('multi_process_random_sweep', number=10)
+    # cProfile.run('multi_process_random_sweep()', sort='tottime')
+    # cProfile.run('random_sweep()', sort='tottime')
     # cProfile.run('one_sweep()', sort='tottime')
     # cProfile.run('matching_with_pending_order()')

@@ -18,15 +18,15 @@ public class Order {
         this.quantity = quantity;
     }
 
-    public int getPrice() {
+    public int price() {
         return price;
     }
 
-    public Side getSide() {
+    public Side side() {
         return side;
     }
 
-    public int getQuantity() {
+    public int quantity() {
         return quantity;
     }
 

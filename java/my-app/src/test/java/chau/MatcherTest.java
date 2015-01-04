@@ -3,7 +3,6 @@ package chau;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.List;
@@ -32,8 +31,8 @@ public class MatcherTest {
 
     @Test
     public void fullMatchReturnOneReport() {
-        matcher.match(new Order(Side.BUY, 16000, 100));
-        List<Report> rpt = matcher.match(new Order(Side.SELL, 16000, 100));
+        matcher.match(new Order(Side.SELL, 16000, 100));
+        List<Report> rpt = matcher.match(new Order(Side.BUY, 16000, 100));
         Assert.assertEquals(1, rpt.size());
     }
 
@@ -74,7 +73,7 @@ public class MatcherTest {
     }
 
     @Test
-    public void matchRemaining(){
+    public void matchNewRemainingOrder(){
         matcher.match(new Order(Side.BUY, 16000, 100));
         matcher.match(new Order(Side.SELL, 16000, 200));
         List<Report> rpt =  matcher.match(new Order(Side.BUY, 16000, 100));
@@ -82,7 +81,15 @@ public class MatcherTest {
     }
 
     @Test
-    public void matchCheapBuyer(){
+    public void matchOldRemainingOrderInCorrectQuantity(){
+        matcher.match(new Order(Side.BUY, 16000, 200));
+        matcher.match(new Order(Side.SELL, 16000, 100));
+        List<Report> rpt =  matcher.match(new Order(Side.SELL, 16000, 200));
+        Assert.assertEquals(100, rpt.get(0).getQuantity());
+    }
+
+    @Test
+    public void cheapBuyerDoesNotMatch(){
         matcher.match(new Order(Side.SELL, 16000, 200));
         List<Report> rpt =  matcher.match(new Order(Side.BUY, 15000, 100));
         Assert.assertEquals(0, rpt.size());
@@ -94,6 +101,29 @@ public class MatcherTest {
         matcher.match(new Order(Side.SELL, 16000, 200));
         List<Report> rpt =  matcher.match(new Order(Side.BUY, 16000, 300));
         Assert.assertEquals(100, rpt.get(1).getQuantity());
+    }
+
+    @Test
+    public void matchedOrderShouldNotBeKept(){
+        matcher.match(new Order(Side.SELL, 16000, 200));
+        matcher.match(new Order(Side.BUY, 16000, 200));
+        List<Report> rpt =  matcher.match(new Order(Side.SELL, 16000, 200));
+        Assert.assertEquals(0, rpt.size());
+    }
+
+    @Test
+    public void lateOrderGetBetterPrice(){
+        matcher.match(new Order(Side.SELL, 16000, 200));
+        List<Report> rpt = matcher.match(new Order(Side.BUY, 17000, 200));
+        Assert.assertEquals(rpt.get(0).getPrice(), 16000);
+    }
+
+    @Test
+    public void betterHigherSellPriceWillMatchFirst(){
+        matcher.match(new Order(Side.SELL, 16000, 100));
+        matcher.match(new Order(Side.SELL, 17000, 200));
+        List<Report> rpt = matcher.match(new Order(Side.BUY, 18000, 200));
+        Assert.assertEquals(rpt.get(0).getQuantity(), 200);
     }
 
 }

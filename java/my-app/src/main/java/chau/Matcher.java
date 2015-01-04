@@ -13,49 +13,79 @@ import java.util.*;
 
 class OrderComparator implements Comparator<Order> {
 
+    private final Side side;
+
+    public OrderComparator(Side side) {
+        this.side = side;
+    }
+
     @Override
     public int compare(Order o1, Order o2) {
-        if (o1.getPrice() > o2.getPrice()) {
-            return 1;
+        int greater = side == Side.BUY ? 1 : -1;
+        int lesser = side == side.BUY ? -1 : 1;
+        if (o1.price() > o2.price()) {
+            return greater;
         }
-        if (o1.getPrice() < o2.getPrice()) {
-            return -1;
+        if (o1.price() < o2.price()) {
+            return lesser;
         }
-
-        // o1.price == o2.price
+        // case o1.price == o2.price
         return 0;
     }
 
 }
 
 public class Matcher {
-    private HashMap<Side, PriorityQueue<Order>> orders;
-    private PriorityQueue<Order> buyOrders;
-    private PriorityQueue<Order> sellOrders;
+    private PriorityQueue<Order>[] orders;
 
     public Matcher() {
         int ORDER_STORAGE_SIZE = 1000;
-        orders = new HashMap<Side, PriorityQueue<Order>>();
-        orders.put(Side.BUY, new PriorityQueue<Order>(ORDER_STORAGE_SIZE, new OrderComparator()));
-        orders.put(Side.SELL, new PriorityQueue<Order>(ORDER_STORAGE_SIZE, new OrderComparator()));
+        orders = new PriorityQueue[2];
+        // Use this will help speed up the access to the order book
+        orders[0] = new PriorityQueue<Order>(ORDER_STORAGE_SIZE, new OrderComparator(Side.BUY));
+        orders[1] = new PriorityQueue<Order>(ORDER_STORAGE_SIZE, new OrderComparator(Side.SELL));
+    }
+
+    public static void main(String[] args) {
+        Matcher m = new Matcher();
+        for (int i = 0; i < 1000; i++) {
+            m.match(new Order(Side.BUY, 15000, 100));
+        }
+        for (int i = 0; i < 1000; i++) {
+            m.match(new Order(Side.SELL, 17000, 100));
+        }
+        long now = System.currentTimeMillis();
+        for (int n = 0; n < 1000000; n++) {
+            for (int i = 0; i < 10; i++) {
+                m.match(new Order(Side.BUY, 16000, 100));
+            }
+            for (int i = 0; i < 10; i++) {
+                m.match(new Order(Side.SELL, 16000, 100));
+            }
+        }
+        System.out.println(String.format("Time lapsed %d", System.currentTimeMillis() - now));
     }
 
     private PriorityQueue<Order> getPendingOrders(Side side) {
-        Side oppositeSide = side == Side.BUY ? Side.SELL : Side.BUY;
-        return orders.get(oppositeSide);
+        return orders[side == Side.BUY ? 1 : 0];
+    }
+
+    private PriorityQueue<Order> getSameSideOrder(Side side) {
+        return orders[side == Side.BUY ? 0 : 1];
     }
 
     private boolean isMatch(Order o1, Order o2) {
-        int buyPrice = o1.getSide() == Side.BUY ? o1.getPrice() : o2.getPrice();
-        int sellPrice = o1.getSide() == Side.SELL ? o1.getPrice() : o2.getPrice();
-        return o1.getSide() != o2.getSide() && buyPrice >= sellPrice;
+        int buyPrice = o1.side() == Side.BUY ? o1.price() : o2.price();
+        int sellPrice = o1.side() == Side.SELL ? o1.price() : o2.price();
+        return o1.side() != o2.side() && buyPrice >= sellPrice;
     }
 
     public List<Report> match(Order order) {
-        orders.get(order.getSide()).add(order);
-        PriorityQueue<Order> pendingOrders = getPendingOrders(order.getSide());
-        int targetQuantity = order.getQuantity();
-        List<Order> removedOrders = getMatchedOrders(pendingOrders, order, targetQuantity);
+        PriorityQueue<Order> pendingOrders = getPendingOrders(order.side());
+        List<Order> removedOrders = getMatchedOrders(pendingOrders, order);
+        if (order.quantity() > 0) {
+            getSameSideOrder(order.side()).add(order);
+        }
         List<Report> rptList = createMatchedReports(removedOrders);
         return Collections.unmodifiableList(rptList);
     }
@@ -64,29 +94,34 @@ public class Matcher {
         List<Report> rptList = new ArrayList<Report>();
         for (Order next : removedOrders) {
             Report rpt = new Report();
-            rpt.setQuantity(next.getQuantity());
+            rpt.setQuantity(next.quantity());
+            rpt.setPrice(next.price());
             rptList.add(rpt);
         }
         return rptList;
     }
 
-    private List<Order> getMatchedOrders(PriorityQueue<Order> pendingOrders, Order order, int targetQuantity) {
+    private List<Order> getMatchedOrders(PriorityQueue<Order> pendingOrders, Order order) {
+        int remainQuantity = order.quantity();
         List<Order> matchedOrders = new ArrayList<Order>();
-        while (pendingOrders.size() > 0 && targetQuantity > 0) {
+        while (pendingOrders.size() > 0 && remainQuantity > 0) {
             Order next = pendingOrders.peek();
             if (!isMatch(next, order)) {
                 break;
             }
-            if (targetQuantity <= next.getQuantity()){
-                Order last = new Order(order.getSide(), order.getPrice(), targetQuantity);
-                matchedOrders.add(last);
+            if (remainQuantity < next.quantity()) {
+                next.setQuantity(next.quantity() - remainQuantity);
+                Order lastMatch = new Order(order.side(), order.price(), remainQuantity);
+                matchedOrders.add(lastMatch);
+                remainQuantity = 0;
                 break;
             }
-            if (next.getQuantity() < targetQuantity) {
+            if (remainQuantity >= next.quantity()) {
                 matchedOrders.add(pendingOrders.remove());
+                remainQuantity -= next.quantity();
             }
-            targetQuantity -= next.getQuantity();
         }
+        order.setQuantity(remainQuantity);
         return matchedOrders;
     }
 }
